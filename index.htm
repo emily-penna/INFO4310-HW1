@@ -1,0 +1,511 @@
+<html>
+    <head>
+        <title> HW1: Static Visualization Design - Emily Penna </title>
+
+        <link href="https://fonts.googleapis.com/css?family=Lato:400,700|Raleway:400,700" rel="stylesheet">
+  
+        <script src="https://d3js.org/d3.v7.min.js"></script>
+        <script src="https://d3js.org/topojson.v3.min.js"></script>
+
+        <style> 
+
+        .neighborhood {
+            fill: rgb(197, 197, 197);
+        }
+
+        .outline {
+            stroke: black;
+            stroke-width: 1px;
+            fill: none;
+        }
+
+        .legendAxis line,
+        .legendAxis path {
+        stroke: white;
+        }
+
+        .legendAxis text
+        {
+        fill: white;
+        }
+
+        </style>
+
+    </head>
+
+    <body>
+
+        <h1>San Francisco DPW Urban Tree Planting Initiative</h1>
+        <p>
+            Data of San Fransico Department of Public Works (DPW) owned and maintained trees occupying city sidewalks.
+        <p>
+            The movement for the need for street trees in SF began in the 1950s, and since then, the DPW has continued to plant new trees to bring their many benefits to the city's neighborhoods. 
+            <br />the trees are not only beautiful - they help manage stormwater, reduce air and noise pollution, 
+            lower air temperatures with shade, provide wildlife habitat, reduce stress, and many more! 
+            
+        <p>
+            More information of the departments goals can be found on their 
+            <a href="https://www.sfpublicworks.org/trees">website</a>.
+        </p>
+
+
+        <h2>Location of Trees Planted by the DPW:</h2>
+        <p>
+            Well-known landmarks of San Francisco have been annotated for positional context. Trees planted before 1955 share the same color due to lack of precise dates. 
+            <br /> The radius of each point cooresponds to that tree's relative trunk diameter at breast height
+        </p>
+        <svg id="mapvis" height="800" width="1000" style="background: rgb(64, 64, 64); margin-top:5px; margin-left: 50px;" >
+        </svg>
+
+        <h2>Number of Trees Planted by the DPW per Year since 1955:</h2>
+        <p> As of 2023, there are over 125,000 street trees in San Francisco. The DPW has the goal of reaching 155,000 trees by 2040.</p>
+        <svg id="trendvis" height="400" width="1000" style="background: rgb(255, 255, 255); margin-top:5px; margin-left: 50px;" >
+        </svg>
+
+        <script>
+
+            // https://www.sfpublicworks.org/trees
+            // Data of San Fransico Department of Public Works Owned/Maintained tree occupying city Sidewalks.
+            // The DPW has the goal to continue to plant new trees to bring their many benefits to the city's neighborhoods. 
+            // The movement for the need for street trees in SF began in the 1950s.
+
+
+            // Locations of Planted Trees (MAP)
+            const mapsvg = d3.select("#mapvis");
+            const mapWidth = mapsvg.attr("width");
+            const mapHeight = mapsvg.attr("height");
+            const mapMargin = {top: 120, right: 20, bottom: 100, left: 20};
+
+            const mapAreaWidth = mapWidth - mapMargin.left - mapMargin.right;
+            const mapAreaHeight = mapHeight - mapMargin.top - mapMargin.bottom;
+
+            const map = mapsvg.append("g")
+                .attr("transform", "translate("+mapMargin.left+","+mapMargin.top+")");
+
+            const legendBarWidth = 300;
+            const legendBarHeight = 20; 
+
+            let legend = mapsvg.append('g')
+                .attr("transform", "translate("+(mapWidth - legendBarWidth - 50)+","+(mapHeight - legendBarHeight- 30)+")");
+
+            // Planted trees over time v. Number of days abover 90 degrees over time (TRENDS)
+
+            const trendsvg = d3.select("#trendvis");
+            const trendWidth = trendsvg.attr("width");
+            const trendHeight = trendsvg.attr('height');
+            const trendMargin = {top: 20, right: 100, bottom: 30, left: 100};
+
+            const trendAreaWidth = trendWidth - (trendMargin.left + trendMargin.right);
+            const trendAreaHeight = trendHeight - (trendMargin.top + trendMargin.bottom);
+
+            const trend = trendsvg.append("g")
+
+            // We use <g> tags to make sure the points sit above the axis labels
+            let annotations = trend.append("g").attr("id","annotations");
+
+            let plot = trend.append('g').attr("id","plot");
+
+            function drawLegend(legendSelector, legendColorScale) {
+    
+                // Shrink legend bar by 5 px inwards from sides of SVG
+                const offsets = { width: 10,
+                                    top: 2,
+                                    bottom: 24 }; 
+                // Number of integer 'pixel steps' to draw when showing continuous scales
+                //    Warning, not using a canvas element so lots of rect tags will be created for low stepSize, causing issues with performance -- keep this large
+                const stepSize = 4; 
+
+    
+                const legend = d3.select(legendSelector);
+                const legendHeight = legend.attr("height");
+                const legendBarWidth = legend.attr("width") - (offsets.width * 2);
+                const legendMinMax = d3.extent(legendColorScale.domain()); 
+
+                const barHeight = legendHeight - offsets.top - offsets.bottom;     
+    
+                // In this case the "data" are pixels, and we get numbers to use in colorScale
+                // Use this to make axis labels
+                let barScale = d3.scaleLinear().domain([legendMinMax[0],legendMinMax[1]])
+                                                .range([0,legendBarWidth]);
+                let barAxis = d3.axisBottom(barScale);
+                
+                // Place for bar slices to live
+                let bar = legend.append("g")
+                                .attr("class", "legend colorbar")
+                                .attr("transform", `translate(${offsets.width},${offsets.top})`)
+
+
+        
+            for (let i=0; i<legendBarWidth; i=i+stepSize) {
+            
+                let center = i+(stepSize/2);
+                let dataCenter = barAxis.scale().invert( center );
+            
+                bar.append("rect")
+                    .attr("x", i)
+                    .attr("y", 0)
+                    .attr("width", stepSize)
+                    .attr("height",barHeight)
+                    .style("fill", legendColorScale( dataCenter ) ); 
+    
+            }
+        
+
+            // DONE w/SWITCH    
+            
+            // Finally, draw legend labels
+            legend.append("g")
+                    .attr("class", "legend axis")
+                    .attr("transform",`translate(${offsets.width},${offsets.top+barHeight+5})`)
+                    .call(barAxis);
+            
+        }
+
+
+        const requestMap = async function() {
+            // Draw map of California
+            const cali = await d3.json("SF-Neighborhoods.geo.json");
+            console.log(cali); 
+            
+            var neighborhoods = topojson.feature(cali, cali.objects.SFNeighborhoods);
+            var neighborMesh = topojson.mesh(cali, cali.objects.SFNeighborhoods);
+
+            console.log(neighborhoods);
+            console.log(neighborMesh);
+
+            // note to self: a projection is necessary when maping any longitude and latitude. 
+            var projection = d3.geoAlbersUsa().fitSize([mapAreaWidth, mapAreaHeight], neighborhoods);
+            var path = d3.geoPath().projection(projection);
+
+            // Draw neighborhoods
+
+            map.selectAll("path.neighborhood").data(neighborhoods.features)
+                .join("path")
+                .attr("class", "neighborhood")
+                .attr("debugNote", d => d.id)
+                .attr("d", path);
+
+            // Draw outlines
+
+            map.append("path").datum(neighborMesh)
+                .attr("class", "outline")
+                .attr("d", path);
+
+            // import dataset (Trees) ------------------------------------------------------------------
+
+            var treeData = await d3.csv("Street_Tree_List-2022-01-30_FILTERED.csv", d3.autotype);
+            var treePlantedData = await d3.csv("Street_Tree_List-2022-01-30_FILTERED_DATEONLY.csv", d3.autotype);
+            console.log(treeData[0]);
+
+            // create scales
+
+            // Generate the dictionaries we will need
+            let treeSizes = {}; 
+            let plantDates = {};
+            let plantsPerYear = {};
+
+            treeData.forEach( row => {
+                treeSizes[ row.TreeID ] = Number(row.DBH);
+                plantDates[ row.TreeID ] = Number(row.PlantDate);
+
+                if (plantsPerYear[ Number(row.PlantDate)])
+                    plantsPerYear[ Number(row.PlantDate)]++;
+                else 
+                    plantsPerYear[ Number(row.PlantDate)] = 1;
+            });
+
+            treePlantedData.forEach( row => {
+
+                if (plantsPerYear[ Number(row.PlantDate)])
+                    plantsPerYear[ Number(row.PlantDate)]++;
+                else 
+                    plantsPerYear[ Number(row.PlantDate)] = 1;
+            });
+
+            console.log(treeSizes)
+            console.log(plantsPerYear)
+
+            // For the radius of the drawn circles
+            const sizeExtent = d3.extent(treeData, d => d.DBH);
+            console.log(sizeExtent)
+            const sizeScale = d3.scaleLog().domain(sizeExtent).range([0, 10]);
+
+            console.log(treeData[0])
+            console.log(sizeScale(treeData[0].DBH))
+        
+            // color scale for year planted
+            const minMax = d3.extent( Object.values(plantDates) );
+            console.log(minMax);
+            
+            const colorScale = d3.scaleSequential()
+                                .domain(minMax)
+                                .interpolator(d3.interpolateGreens)
+            
+            // add tree points
+
+            map.selectAll("path.points").data(treeData)
+                .join("circle")
+                .attr("class", "point")
+                .attr("r", d => sizeScale(d.DBH))
+                .attr("opacity", function(d) {return d.PlantDate == '1955' ? 0.1 : 0.8})
+                .attr("fill", d => colorScale(d.PlantDate))
+                .attr("transform", function(d) {return "translate(" + projection([Number(d.Longitude), Number(d.Latitude)]) + ")";});
+
+            // add data values for landmarks ---------------------------------------------------------
+
+            var SFData = await d3.csv("Landmarks_in_San_Francisco.csv", d3.autotype);
+            console.log(SFData);
+
+            map.selectAll("path.landmarks").data(SFData)
+                .join("rect")
+                .attr("class", "landmarks")
+                .attr('width', 10)
+                .attr('height', 10)
+                .attr('fill', "#a63d40")
+                .attr('x', d => projection([Number(d.Longitude), Number(d.Latitude)])[0])
+                .attr('y', d => projection([Number(d.Longitude), Number(d.Latitude)])[1])
+                .attr("transform", function(d) {return "translate(" + [-5, -5] + ")";}); // account for the square being drawn with its origin in the top left corner. 
+
+
+            // add lines off of landmarked locations
+            // https://stackoverflow.com/questions/43945356/drawing-line-between-two-projected-points-on-map-no-line-showing-d3-js
+
+            function LandmarkKeyCoords(d) {
+                x1 = projection([Number(d.Longitude), Number(d.Latitude)])[0]
+                y1 =  projection([Number(d.Longitude), Number(d.Latitude)])[1]
+
+                start = [x1, y1]
+ 
+                origin = [mapAreaWidth /2 , mapAreaHeight / 2];
+
+                diff = [x1 - origin[0], y1 - origin[1]];
+                diff_length = Math.sqrt(diff[0] * diff[0] + diff[1] * diff[1]);
+                diff_normalized = [diff[0] / diff_length, diff[1] / diff_length];
+
+                dist_from_border = 240 - diff_length/2
+
+                //console.log(d.Name + ": " + dist_from_border)
+
+                end = [x1 + (diff_normalized[0] * dist_from_border), y1 + (diff_normalized[1] * dist_from_border)]
+
+                return end;
+
+            }
+            
+            // https://jonathansoma.com/lede/storytelling/d3/text-elements/
+            // http://www.d3noob.org/2014/02/attributes-in-d3js.html
+            
+            map.selectAll('line')
+                .data(SFData)
+                .enter()
+                .append('line')
+                .attr("stroke-width", 2)
+                .attr("stroke", "#a63d40")
+                .attr('x1', d => projection([Number(d.Longitude), Number(d.Latitude)])[0])
+                .attr('y1', d => projection([Number(d.Longitude), Number(d.Latitude)])[1])
+                .attr('x2', d => LandmarkKeyCoords(d)[0])
+                .attr('y2', d => LandmarkKeyCoords(d)[1])
+                
+
+            // Add Text to describe landmarks
+
+            map.selectAll('text')
+                .data(SFData)
+                .enter()
+                .append('text')
+                .text(d => d.Name)
+                .attr('x',  d => LandmarkKeyCoords(d)[0])
+                .attr('y', d => LandmarkKeyCoords(d)[1])
+                .attr('fill', 'white')
+                .attr('text-anchor','middle')
+
+            // Add Legend for understanding tree data ----------------------------------------------------------
+
+            const stepSize = 4; 
+            const legendMinMax = d3.extent(colorScale.domain()); 
+            
+
+            // In this case the "data" are pixels, and we get numbers to use in colorScale
+            // Use this to make axis labels
+            let barScale = d3.scaleLinear().domain(legendMinMax)
+                                            .range([0,legendBarWidth]);
+
+            let barAxis = d3.axisBottom(barScale)
+                .tickFormat(d3.format("~f"))  // exact value without commas
+                .tickValues(legendMinMax)
+                
+            
+            // Place for bar slices to live
+            let bar = legend.append("g")
+                            .attr("class", "legend colorbar")
+                            //.attr("transform", `translate(${offsets.width},${offsets.top})`)
+
+
+            for (let i=0; i<legendBarWidth; i=i+stepSize) {
+            
+                let center = i+(stepSize/2);
+                let dataCenter = barAxis.scale().invert( center );
+            
+                bar.append("rect")
+                    .attr("x", i)
+                    .attr("y", 0)
+                    .attr("width", stepSize)
+                    .attr("height",legendBarHeight)
+                    .style("fill", colorScale( dataCenter ) ); 
+    
+            }
+        
+            // Finally, draw legend labels
+            legend.append("g")
+                    .attr("class", "legendAxis")
+                    .attr("transform",`translate(${0},${legendBarHeight})`)
+                    .call(barAxis);
+
+            legend.append('text')
+                .text('Date Tree was Planted')
+                .attr('fill', 'white')
+                .attr("transform",`translate(${0},${(-5)})`)
+
+
+            // Plot Trend Data ---------------------------------------------------------------------------------
+            var tempData = await d3.csv("SF_Temperature.csv", d3.autotype);
+            console.log(tempData);
+
+            // Add X Axis
+            const yearExtent = d3.extent(tempData, d => d['Year']);
+            const yearScale = d3.scaleLinear()
+                .domain(yearExtent)
+                .range([0, trendAreaWidth]);
+
+            let bottomAxis = d3.axisBottom(yearScale)
+                .tickFormat(d3.format("~f"));  // exact value without commas
+
+            annotations.append("g")
+                .attr("class", "x axis")
+                .attr("transform",`translate(${trendMargin.left},${trendAreaHeight + trendMargin.bottom - 10})`)
+                .call(bottomAxis);
+
+            // Add Left-Hand Y Axis (Days >= 90 degrees)
+
+            // const daysExtent = d3.extent(tempData, d => Number(d['Days >= 90']));
+            // const daysScale = d3.scaleLinear()
+            //     .domain(daysExtent)
+            //     .range([trendAreaHeight, 0])
+
+            // console.log(daysExtent)
+
+            // let leftAxis = d3.axisLeft(daysScale)
+
+            // annotations.append('g')
+            //     .attr('class', 'y axis')
+            //     .attr("transform",`translate(${trendMargin.left},${trendMargin.top})`) 
+            //     .call(leftAxis)
+
+            // Add Right-Hand Y Axis (Trees Planted after 1955)
+
+            // ignore 1955. 
+            plantsPerYear['1955'] = 0;
+            const plantedExtent = d3.extent(Object.values(plantsPerYear));
+            const plantedScale = d3.scaleLinear()
+                .domain(plantedExtent)
+                .range([trendAreaHeight, 0])
+
+            console.log(plantedExtent)
+
+            let rightAxis = d3.axisLeft(plantedScale)
+
+            annotations.append('g')
+                .attr('class', 'y axis')
+                //.attr("transform",`translate(${trendAreaWidth + trendMargin.left},${trendMargin.top})`) 
+                .attr("transform",`translate(${trendMargin.left},${trendMargin.top})`) 
+                .call(rightAxis)
+
+            // add trend line (Days >= 90 Degrees)
+
+            // plot.append("path")
+            //     .datum(tempData)
+            //     .attr('fill', 'none')
+            //     .attr('stroke', "orange")
+            //     .attr('stroke-width', 2)
+            //     .attr('d', d3.line()
+            //         .x(d => yearScale(d.Year))
+            //         .y(d => daysScale(Number(d['Days >= 90'])))
+            //     )
+            //     .attr("transform",`translate(${trendMargin.left},${trendMargin.top})`) 
+
+            // add trend line (Trees Planted)
+
+            console.log(Object.entries(plantsPerYear))
+
+            plot.append("path")
+                .datum(Object.entries(plantsPerYear))
+                .attr('fill', 'none')
+                .attr('stroke', 'rgb(197, 197, 197)') // match the neighborhood bg color to match map
+                .attr('stroke-width', 5)
+                .attr('d', d3.line()
+                    .x(d => yearScale(Number(d[0])))
+                    .y(d => plantedScale(d[1]))
+                )
+                .attr("transform",`translate(${trendMargin.left},${trendMargin.top})`)
+
+            // color reference to the corresponding year color on the map
+            plot.selectAll("points").data(Object.entries(plantsPerYear))
+                .join('circle')
+                .attr('fill', d => colorScale(Number(d[0])))
+                .attr('cx', d => yearScale(Number(d[0])))
+                .attr('cy', d => plantedScale(d[1]))
+                .attr('r', 5)
+                .attr('stroke', "rgb(64, 64, 64)")
+                .attr("transform",`translate(${trendMargin.left},${trendMargin.top})`)
+
+            // Add a point for the maximum year (2008 - 1799 trees)
+
+            // plot.append("circle")
+            //     .attr('cx', yearScale(2008))
+            //     .attr('cy', plantedScale(1799))
+            //     .attr('r', 5)
+            //     .attr("transform",`translate(${trendMargin.left},${trendMargin.top})`)
+            //     .attr('stroke', "rgb(64, 64, 64)")
+            //     .attr("fill", 'none')
+
+            let lineOffset = {x : -100, y: 30};
+
+            plot.append('line')
+                .attr('stroke-width', 2)
+                .attr('stroke', "rgb(64, 64, 64)")
+                .attr('x1', yearScale(2008) - 5)
+                .attr('y1', plantedScale(1799))
+                .attr('x2', yearScale(2008) + lineOffset.x)
+                .attr('y2', plantedScale(1799) + lineOffset.y)
+                .attr("transform",`translate(${trendMargin.left},${trendMargin.top})`)
+
+            plot.append('text')
+                .attr('x', yearScale(2008) + lineOffset.x - 10)
+                .attr('y', plantedScale(1799) + lineOffset.y + 10)
+                .attr('text-anchor','end')
+                .attr('fill', 'black')
+                .text('The DPW planted 1799 trees in 2008')
+                .attr("transform",`translate(${trendMargin.left},${trendMargin.top})`)
+
+
+
+            
+
+            
+
+
+            
+                
+
+
+        }  
+        
+       
+
+        requestMap();
+
+        
+        </script>
+
+    </body>
+</html>
